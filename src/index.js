@@ -1,10 +1,6 @@
-const {
-  DbContext
-} = require('./context')
+const { DbContext } = require('./context')
 
-const {
-  DbServer
-} = require('./server')
+const { DbServer } = require('./server')
 
 module.exports = {
   DbContext,

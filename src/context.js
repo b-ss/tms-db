@@ -2,167 +2,128 @@ const _ = require('lodash')
 const log4js = require('@log4js-node/log4js-api')
 const logger = log4js.getLogger('tms-db')
 /**
+ * 正常启动的数据库服务
+ */
+const _availableDialects = new Map()
+/**
  * 数据库访问上下文对象，用于保存连接资源、事物、跟踪信息等
  */
-const DB_CTX_CONN = Symbol('db_ctx_conn')
-const DB_CTX_WRITABLE_CONN = Symbol('db_ctx_writable_conn')
 const DB_CTX_TRANSACTION = Symbol('db_ctx_transaction')
-// 记录执行的SQL
-const EXEC_SQL_STACK = Symbol('exec_sql_stack')
-
+/**
+ * 数据服务统一管理
+ */
 class DbContext {
   /**
-   * 
-   * @param {*} param 
-   * @param {Connection} param.conn 默认数据库连接 
-   * @param {Connection} param.writbleConn 写数据库连接 
-   * @param {TmsTransaction} param.transaction 事物 
+   * 初始化数据库服务
+   *
+   * @param {*} dbConfig 配置信息
    */
-  constructor({
-    conn = null,
-    writableConn = null,
-    transaction = null
-  } = {}) {
-    this[DB_CTX_CONN] = conn
-    this[DB_CTX_WRITABLE_CONN] = writableConn
+  static async init(dbConfig) {
+    if (_availableDialects.size) _availableDialects.clear()
+    if (typeof dbConfig !== 'object') {
+      logger.error('数据库连接信息格式错误')
+      return Promise.reject('数据库连接信息格式错误')
+    }
+    if (typeof dbConfig.mysql !== 'object' && typeof dbConfig.sqlite !== 'object') {
+      logger.error('没有获得支持的数据库类型')
+      return Promise.reject('没有获得支持的数据库类型')
+    }
+    let result = {}
+    if (dbConfig.mysql) {
+      let { TmsMysql } = require('./mysql')
+      await TmsMysql.init(dbConfig.mysql)
+      _availableDialects.set('mysql', true)
+      result.mysql = true
+    }
+
+    if (dbConfig.sqlite) {
+      let { TmsSqlite3 } = require('./sqlite')
+      await TmsSqlite3.init(dbConfig.sqlite)
+      _availableDialects.set('sqlite', true)
+      result.sqlite = true
+    }
+
+    return Promise.resolve(result)
+  }
+  /**
+   * 是否有可用的数据库
+   * @param {string} dialect 数据库类型名称
+   */
+  static isAvailable(dialect) {
+    return !!_availableDialects.get(dialect)
+  }
+  /**
+   * 创建实例
+   *
+   * @param {*} param
+   * @param {TmsTransaction} param.transaction 事物
+   */
+  constructor({ dialects = ['mysql', 'sqlite'], transaction = null, debug = false } = {}) {
+    if (dialects.includes('mysql') && DbContext.isAvailable('mysql')) {
+      let { TmsMysql } = require('./mysql')
+      this.mysql = new TmsMysql({ ctx: this, debug })
+    }
+    if (dialects.includes('sqlite') && DbContext.isAvailable('sqlite')) {
+      let { TmsSqlite3 } = require('./sqlite')
+      this.sqlite = new TmsSqlite3({ ctx: this, debug })
+    }
     this[DB_CTX_TRANSACTION] = transaction
   }
-  get conn() {
-    return this[DB_CTX_CONN]
+  /**
+   * 系统配置的默认数据库服务
+   */
+  db() {
+    if (this.mysql && this.sqlite) {
+      return this.mysql
+    } else if (this.mysql) {
+      return this.mysql
+    } else if (this.sqlite) {
+      return this.sqlite
+    }
+    return null
   }
-  set conn(conn) {
-    this[DB_CTX_CONN] = conn
+  /**
+   * 结束数据库实例
+   *
+   * @param {function} done
+   */
+  end(done) {
+    if (this.mysql) {
+      this.mysql.end()
+      this.mysql = null
+    }
+    if (this.sqlite) {
+      this.sqlite.end()
+      this.sqlite = null
+    }
+    if (typeof done === 'function') done()
   }
-  get writableConn() {
-    return this[DB_CTX_WRITABLE_CONN]
+  /**
+   * 结束数据库服务
+   *
+   * @param {function} done
+   */
+  static close(done) {
+    if (DbContext.isAvailable('mysql')) {
+      let { TmsMysql } = require('./mysql')
+      TmsMysql.close()
+      _availableDialects.delete('mysql')
+    }
+    if (DbContext.isAvailable('sqlite')) {
+      let { TmsSqlite3 } = require('./sqlite')
+      TmsSqlite3.close()
+      _availableDialects.delete('sqlite')
+    }
+    if (typeof done === 'function') done()
   }
-  set writableConn(conn) {
-    this[DB_CTX_WRITABLE_CONN] = conn
-  }
+  /**
+   *
+   */
   get transaction() {
     return this[DB_CTX_TRANSACTION]
   }
   set transaction(trans) {
     this[DB_CTX_TRANSACTION] = trans
-  }
-  set execSqlStack(sql) {
-    if (undefined === this[EXEC_SQL_STACK]) this[EXEC_SQL_STACK] = []
-    this[EXEC_SQL_STACK].push(sql)
-  }
-  get execSqlStack() {
-    return this[EXEC_SQL_STACK]
-  }
-  static release(dbConn) {
-    if (dbConn) {
-      logger.info(`销毁数据库连接(${dbConn.threadId})`)
-      dbConn.release()
-      dbConn = null
-    }
-  }
-  end(done) {
-    if (this[DB_CTX_WRITABLE_CONN]) {
-      let conn = this[DB_CTX_WRITABLE_CONN]
-      let threadId = conn.threadId
-      conn.release()
-      logger.info(`关闭写数据库连接（${threadId}）`)
-    }
-    if (this[DB_CTX_CONN]) {
-      let conn = this[DB_CTX_CONN]
-      let threadId = conn.threadId
-      conn.release()
-      logger.info(`关闭默认数据库连接（${threadId}）`)
-    }
-
-    if (done && typeof done === 'function') done()
-
-    delete this[EXEC_SQL_STACK]
-  }
-
-  /**
-   * 初始化
-   * 
-   * @param {*} dbConfig 配置信息
-   */
-  init(dbConfig) {
-    if (typeof dbConfig !== 'object') {
-      return Promise.reject('没有指定数据库连接信息')
-    }
-    if (typeof dbConfig.type !== 'string') {
-      return Promise.reject('数据库连接信息不完整')
-    }
-    if (!/mysql|sqlite/.test(dbConfig.type)) {
-      return Promise.reject('不支持的数据库类型')
-    }
-
-    return this[_.camelCase(`inti ${dbConfig.type}`)]
-  }
-
-  initMysql(dbConfig) {
-    if (typeof dbConfig.master !== 'object') {
-      return Promise.reject('没有指定默认数据库（master）连接参数')
-    }
-
-    let {
-      Mysql
-    } = require('./mysql')
-    let mysql = new Mysql()
-    mysql.open(dbConfig)
-
-    this.instance = msyql
-
-    return Promise.resolve(true)
-  }
-
-  initSqlite(dbConfig) {
-    if (typeof dbConfig.path !== 'string') {
-      return Promise.reject('没有指定数据库文件路径')
-    }
-
-    return Promise.resolve(true)
-  }
-
-  static close(done) {
-    return new Promise(resolve => {
-      if (cachedWritableDbPool) {
-        cachedWritableDbPool.end(resolve)
-        cachedWritableDbPool = null
-        logger.info(`关闭写数据库（write）连接池`)
-      } else
-        resolve(true)
-    }).then(() => {
-      return cachedMasterDbPool ?
-        new Promise(resolve => {
-          cachedMasterDbPool.end(resolve)
-          cachedMasterDbPool = null
-          logger.info(`关闭默认数据库（master）连接池`)
-        }) :
-        true
-    }).then(() => {
-      if (done && typeof done === 'function') done()
-    })
-  }
-  /**
-   * 获得数据库连接
-   * 
-   * @param {*} options 
-   * @param {sting} options.pathOrConfig 
-   * @param {boolean} options.isWritableConn 
-   * @param {Connection} options.backupConn 如果没有获得指定条件的连接，就返回这个连接
-   * 
-   * @return {Connection} 数据库连接
-   */
-  static async getConnection({
-    pathOrConfig = process.cwd() + "/config/db.js",
-    isWritableConn = false,
-    backupConn = null
-  } = {}) {
-    // 从连接池获得连接
-    await DbContext.getPool(pathOrConfig)
-
-    return await connect({
-      isWritableConn,
-      backupConn
-    })
   }
 }
 

@@ -1,6 +1,4 @@
-const {
-  DbServer
-} = require('../src/server')
+const { DbServer } = require('@/src/server')
 
 describe('server', () => {
   it('insert', async () => {
@@ -9,11 +7,7 @@ describe('server', () => {
       field2: 'b'
     }
     let dbServer = new DbServer()
-    dbServer.execSql = jest.fn((sql, useWritableConn, callback) => {
-      callback(null, {
-        insertId: 999
-      })
-    })
+    dbServer.execSql = jest.fn(() => Promise.resolve({ insertId: 999 }))
     let stmtIns = dbServer.newInsert('tms_db_test', insertData)
     let id = await stmtIns.exec({
       isAutoIncId: true
@@ -25,11 +19,7 @@ describe('server', () => {
   })
   it('delete', async () => {
     let dbServer = new DbServer()
-    dbServer.execSql = jest.fn((sql, useWritableConn, callback) => {
-      callback(null, {
-        affectedRows: 1
-      })
-    })
+    dbServer.execSql = jest.fn(() => Promise.resolve({ affectedRows: 1 }))
     let stmtDel = dbServer.newDelete('tms_db_test')
     stmtDel.where.fieldMatch('id', '=', 1)
     await stmtDel.exec()
@@ -39,11 +29,7 @@ describe('server', () => {
   })
   it('update', async () => {
     let dbServer = new DbServer()
-    dbServer.execSql = jest.fn((sql, useWritableConn, callback) => {
-      callback(null, {
-        affectedRows: 1
-      })
-    })
+    dbServer.execSql = jest.fn(() => Promise.resolve({ affectedRows: 1 }))
     let stmtUpd = dbServer.newUpdate('tms_db_test', {
       field1: 'a'
     })
@@ -54,14 +40,14 @@ describe('server', () => {
     expect(dbServer.execSql.mock.calls[0][1]).toBe(true)
   })
   it('newSelect', async () => {
-    let expectedRows = [{
-      field1: 'r1-1',
-      field2: 'r1-2'
-    }]
+    let expectedRows = [
+      {
+        field1: 'r1-1',
+        field2: 'r1-2'
+      }
+    ]
     let dbServer = new DbServer()
-    dbServer.execSql = jest.fn((sql, useWritableConn, callback) => {
-      callback(null, expectedRows)
-    })
+    dbServer.execSql = jest.fn(() => Promise.resolve(expectedRows))
     let select = dbServer.newSelect('tms_db_test', 'field1,field2')
     select.where.fieldMatch('id', '=', 1)
     let rows = await select.exec()
@@ -76,9 +62,7 @@ describe('server', () => {
       field2: 'r1-2'
     }
     let dbServer = new DbServer()
-    dbServer.execSql = jest.fn((sql, useWritableConn, callback) => {
-      callback(null, [expectedRow])
-    })
+    dbServer.execSql = jest.fn(() => Promise.resolve([expectedRow]))
     let selectOne = dbServer.newSelectOne('tms_db_test', 'field1,field2')
     selectOne.where.fieldMatch('id', '=', 1)
     let row = await selectOne.exec()
@@ -90,11 +74,7 @@ describe('server', () => {
   it('selectOneVal', async () => {
     let expectedVal = 'r1-1'
     let dbServer = new DbServer()
-    dbServer.execSql = jest.fn((sql, useWritableConn, callback) => {
-      callback(null, [{
-        field1: expectedVal
-      }])
-    })
+    dbServer.execSql = jest.fn(() => Promise.resolve([{ field1: expectedVal }]))
     let selectOneVal = dbServer.newSelectOneVal('tms_db_test', 'field1')
     selectOneVal.where.fieldMatch('id', '=', 1)
     let val = await selectOneVal.exec()

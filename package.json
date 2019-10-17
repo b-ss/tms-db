@@ -1,18 +1,31 @@
 {
   "name": "tms-db",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "封装数据库操作，支持MySQL，SQLite。",
-  "main": "src/index.js",
-  "scripts": {
-    "test": "jest"
-  },
-  "keywords": ["MySQL", "SQLite"],
   "author": "jasony62",
   "license": "MIT",
+  "main": "lib/index.js",
+  "files": [
+    "lib"
+  ],
+  "scripts": {
+    "build": "node build/build-lib",
+    "test": "jest"
+  },
+  "keywords": [
+    "MySQL",
+    "SQLite"
+  ],
   "dependencies": {
     "@log4js-node/log4js-api": "^1.0.2",
     "better-sqlite3": "^5.4.3",
-    "jest": "^24.9.0",
+    "mysql": "^2.17.1",
     "sqlstring": "^2.3.1"
+  },
+  "devDependencies": {
+    "fs-extra": "^8.1.0",
+    "jest": "^24.9.0",
+    "shelljs": "^0.8.3",
+    "signale": "^1.4.0"
   }
 }
