@@ -1,6 +1,6 @@
 {
   "name": "tms-db",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "封装数据库操作，支持MySQL，SQLite。",
   "author": "jasony62",
   "license": "MIT",
@@ -27,5 +27,9 @@
     "jest": "^24.9.0",
     "shelljs": "^0.8.3",
     "signale": "^1.4.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jasony62/tms-db.git"
   }
 }
