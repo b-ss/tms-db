@@ -295,8 +295,20 @@ class DbServer {
   newSelectOneVal(table, fields) {
     return new SelectOneVal(this, table, fields)
   }
-
+  /**
+   *
+   * @param {*} v
+   */
   escape(v) {
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      let v2 = Object.assign({}, v)
+      Object.keys(v2).forEach(k => {
+        if (typeof v2[k] === 'object') {
+          v2[k] = JSON.stringify(v2[k])
+        }
+      })
+      return SqlString.escape(v2)
+    }
     return SqlString.escape(v)
   }
   escapeId(v) {

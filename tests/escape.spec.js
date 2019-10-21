@@ -77,6 +77,18 @@ describe('#model', function() {
     it('中文 -> 中文', () => {
       expect(db.escape('中文')).toBe("'中文'")
     })
+    it('对象属性是数组，转换为json串', () => {
+      let obj = { f1: ['中文1', '中文2'] }
+      //obj.f1 = JSON.stringify(obj.f1)
+      //console.log('对象-json', obj.f1)
+      expect(db.escape(obj)).toBe('`f1` = \'[\\"中文1\\",\\"中文2\\"]\'')
+    })
+    it('对象属性是对象，转换为json串', () => {
+      let obj = { f1: { a: '中文1' } }
+      //obj.f1 = JSON.stringify(obj.f1)
+      //console.log('对象-json', obj.f1)
+      expect(db.escape(obj)).toBe('`f1` = \'{\\"a\\":\\"中文1\\"}\'')
+    })
   })
   describe('#表名，字段名escape', function() {
     it('column，添加撇号', () => {
