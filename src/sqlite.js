@@ -2,7 +2,7 @@ const log4js = require('@log4js-node/log4js-api')
 const logger = log4js.getLogger('tms-db-sqlite3')
 const Database = require('better-sqlite3')
 const { DbServer } = require('./server')
-
+const SqliteSqlString = require('./SqliteSqlString')
 /**
  * Sqlite数据库服务
  */
@@ -69,18 +69,35 @@ class TmsSqlite3 extends DbServer {
   static close(done) {
     if (typeof done === 'function') done()
   }
+  escapeId(val) {
+    return SqliteSqlString.escapeId(val)
+  }
+  escape(val) {
+    if (val && typeof val === 'object' && !Array.isArray(val)) {
+      let val2 = Object.assign({}, val)
+      Object.keys(val2).forEach(k => {
+        if (typeof val2[k] === 'object') {
+          val2[k] = JSON.stringify(val2[k])
+        }
+      })
+      return SqliteSqlString.escape(val2)
+    }
+    return SqliteSqlString.escape(val)
+  }
   /**
    * 执行SQL语句
    *
-   * @param {string} sql
-   * @param {boolean} useWritableConn
+   * @param {string} sql 要执行的sql
+   * @param {object} options
+   * @param {boolean} [options.useWritableConn = false] 是否使用写连接
    *
    * @return {Promise}
    */
-  execSql(sql, useWritableConn = false) {
+  execSql(sql, { useWritableConn = false, parseJson = { includeKeys: null, excludeKeys: null } } = {}) {
+    let _this = this
     return new Promise(async (resolve, reject) => {
       const conn = await this.adaptiveConn(useWritableConn)
-      let error, result
+      let result
       try {
         const stmt = conn.prepare(sql)
         if (useWritableConn) {
@@ -91,11 +108,12 @@ class TmsSqlite3 extends DbServer {
           }
         } else {
           result = stmt.all()
+          _this.parseJson(result, parseJson.includeKeys, parseJson.execSql)
         }
         resolve(result)
       } catch (e) {
         let msg = `执行SQL语句失败(${e.message})`
-        logger.debug(msg, error)
+        logger.debug(msg, sql)
         reject(msg)
       }
     })

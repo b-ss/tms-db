@@ -1,6 +1,7 @@
 const log4js = require('@log4js-node/log4js-api')
 const logger = log4js.getLogger('tms-db-mysql')
 const mysql = require('mysql')
+const SqlString = require('sqlstring')
 const { DbServer } = require('./server')
 
 // 数据库连接池，只初始化1次。
@@ -209,14 +210,35 @@ class TmsMysql extends DbServer {
     })
   }
   /**
+   *
+   * @param {*} v
+   */
+  escape(v) {
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      let v2 = Object.assign({}, v)
+      Object.keys(v2).forEach(k => {
+        if (typeof v2[k] === 'object') {
+          v2[k] = JSON.stringify(v2[k])
+        }
+      })
+      return SqlString.escape(v2)
+    }
+    return SqlString.escape(v)
+  }
+  escapeId(v) {
+    return SqlString.escapeId(v)
+  }
+  /**
    * 执行SQL语句
    *
-   * @param {string} sql
-   * @param {boolean} useWritableConn
+   * @param {string} sql 要执行的sql
+   * @param {object} options
+   * @param {boolean} [options.useWritableConn = false] 是否使用写连接
    *
    * @return {Promise}
    */
-  execSql(sql, useWritableConn = false) {
+  execSql(sql, { useWritableConn = false, parseJson = { includeKeys: null, excludeKeys: null } } = {}) {
+    let _this = this
     return new Promise((resolve, reject) => {
       this.adaptiveConn(useWritableConn).then(conn => {
         conn.query(sql, (error, result) => {
@@ -225,6 +247,7 @@ class TmsMysql extends DbServer {
             logger.debug(msg, error)
             return reject(msg)
           }
+          _this.parseJson(result, parseJson.includeKeys, parseJson.excludeKeys)
           resolve(result)
         })
       })

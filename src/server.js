@@ -1,4 +1,4 @@
-const SqlString = require('sqlstring')
+const _ = require('lodash')
 const { DbContext } = require('./context')
 
 // 记录执行的SQL
@@ -96,7 +96,7 @@ class Statement {
       this.server.execSqlStack = this.sql
       return Promise.resolve([])
     }
-    return this.server.execSql(this.sql, useWritableConn)
+    return this.server.execSql(this.sql, { useWritableConn })
   }
 }
 /**
@@ -118,7 +118,7 @@ class Insert extends Statement {
     if (Object.keys(this.data).length === 0) throw new Error('数据错误')
 
     let fields = Object.keys(this.data)
-    let values = fields.map(f => this.data[f])
+    let values = fields.map(f => (typeof this.data[f] === 'object' ? JSON.stringify(this.data[f]) : this.data[f]))
 
     return `INSERT INTO ${this.table}(${this.server.escapeId(fields)}) VALUES(${this.server.escape(values)})`
   }
@@ -127,7 +127,9 @@ class Insert extends Statement {
       this.server.execSqlStack = this.sql
       return Promise.resolve()
     }
-    return this.server.execSql(this.sql, true).then(result => (isAutoIncId ? result.insertId : result.affectedRows))
+    return this.server
+      .execSql(this.sql, { useWritableConn: true })
+      .then(result => (isAutoIncId ? result.insertId : result.affectedRows))
   }
 }
 
@@ -156,7 +158,7 @@ class Delete extends StatementWithWhere {
       this.server.execSqlStack = this.sql
       return Promise.resolve(0)
     }
-    return this.server.execSql(this.sql, true).then(result => result.affectedRows)
+    return this.server.execSql(this.sql, { useWritableConn: true }).then(result => result.affectedRows)
   }
 }
 
@@ -176,7 +178,7 @@ class Update extends StatementWithWhere {
       this.server.execSqlStack = this.sql
       return Promise.resolve(0)
     }
-    return this.server.execSql(this.sql, true).then(result => result.affectedRows)
+    return this.server.execSql(this.sql, { useWritableConn: true }).then(result => result.affectedRows)
   }
 }
 
@@ -295,30 +297,47 @@ class DbServer {
   newSelectOneVal(table, fields) {
     return new SelectOneVal(this, table, fields)
   }
-  /**
-   *
-   * @param {*} v
-   */
-  escape(v) {
-    if (v && typeof v === 'object' && !Array.isArray(v)) {
-      let v2 = Object.assign({}, v)
-      Object.keys(v2).forEach(k => {
-        if (typeof v2[k] === 'object') {
-          v2[k] = JSON.stringify(v2[k])
-        }
-      })
-      return SqlString.escape(v2)
-    }
-    return SqlString.escape(v)
-  }
-  escapeId(v) {
-    return SqlString.escapeId(v)
-  }
   end(done) {
     delete this[EXEC_SQL_STACK]
     if (done && typeof done === 'function') done()
   }
-  execSql(sql, useWritableConn, callback) {}
+  /**
+   * 自动解析记录中json串
+   *
+   * @param {Array} rows 要处理的记录
+   * @param {Array} includeKeys 需要处理的字段
+   * @param {Array} excludeKeys 不需要处理的字段
+   */
+  parseJson(rows, includeKeys = [], excludeKeys = []) {
+    if (!rows || !Array.isArray(rows) || rows.length === 0) {
+      return rows
+    }
+    let keys = Object.keys(rows[0])
+    if (Array.isArray(includeKeys) && includeKeys.length) {
+      keys = _.intersection(keys, includeKeys)
+    }
+    if (Array.isArray(excludeKeys) && excludeKeys.length) {
+      keys = _.pullAll(keys, excludeKeys)
+    }
+    if (keys.length === 0) return rows
+
+    rows.forEach(row => {
+      keys.forEach(k => {
+        if (typeof row[k] === 'string') {
+          try {
+            let obj = JSON.parse(row[k])
+            if (obj && typeof obj === 'object') {
+              row[k] = obj
+            }
+          } catch (e) {}
+        }
+      })
+    })
+  }
+  // 需要子类实现的方法
+  escape(v) {}
+  escapeId(v) {}
+  execSql(sql) {}
 }
 
 module.exports = {

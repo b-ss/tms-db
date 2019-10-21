@@ -1,9 +1,12 @@
 let { DbServer } = require('@/src/server')
+const SqlString = require('sqlstring')
 
 describe('#sql', function() {
   let db
   beforeAll(() => {
     db = new DbServer()
+    db.escape = v => SqlString.escape(v)
+    db.escapeId = v => SqlString.escapeId(v)
   })
   describe('#Where', function() {
     let select, where
