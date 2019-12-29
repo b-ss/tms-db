@@ -31,6 +31,8 @@ npm run build
 }
 ```
 
+安装包的时候不自动安装依赖的`mysql`和`better-sqlite3`（依赖关系放在了 peerDependencies 中），使用`tms-db`包的工程需要使用哪个数据再安装哪个包。
+
 ## 实例
 
 每个实例保留一个连接
