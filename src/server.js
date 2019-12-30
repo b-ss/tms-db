@@ -7,7 +7,7 @@ const EXEC_SQL_STACK = Symbol('exec_sql_stack')
 /**
  * where条件
  */
-const WhereMatchOps = ['=', '>', '>=', '<', '<this.conn=', '<>', 'like']
+const WhereMatchOps = ['=', '>', '>=', '<', '<=', '<>', 'like']
 class WhereAssembler {
   /**
    *
