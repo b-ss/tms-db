@@ -1,6 +1,6 @@
 {
   "name": "tms-db",
-  "version": "0.0.10",
+  "version": "0.0.11",
   "description": "封装数据库操作，支持MySQL，SQLite。",
   "author": "jasony62",
   "license": "MIT",
