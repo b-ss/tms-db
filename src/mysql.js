@@ -125,9 +125,7 @@ class TmsMysql extends DbServer {
       if (!this[RUNING_CONN_MASTER_PROMISE]) {
         this[RUNING_CONN_MASTER_PROMISE] = this.connect()
       }
-      this.conn.master = conn = new Promise(resolve => {
-        this[RUNING_CONN_MASTER_PROMISE].then(connect => resolve(connect))
-      })
+      this.conn.master = conn = new Promise(resolve => resolve(this[RUNING_CONN_MASTER_PROMISE]))
     }
 
     return conn
@@ -145,9 +143,7 @@ class TmsMysql extends DbServer {
       if (!this[RUNING_CONN_WRITE_PROMISE]) {
         this[RUNING_CONN_WRITE_PROMISE] = this.connect({ useWritable: true })
       }
-      this.conn.writable = conn = new Promise(resolve => {
-        this[RUNING_CONN_WRITE_PROMISE].then(connect => resolve(connect))
-      })
+      this.conn.writable = conn = new Promise(resolve => resolve(this[RUNING_CONN_WRITE_PROMISE]))
     }
 
     return conn
