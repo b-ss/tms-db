@@ -6,6 +6,10 @@ const { DbServer } = require('./server')
 
 // 数据库连接池，只初始化1次。
 let _pool = { master: null, writable: null }
+//
+let RUNING_CONN_MASTER_PROMISE = Symbol('_runningConnMasterPromise')
+//
+let RUNING_CONN_WRITE_PROMISE = Symbol('_runningConnWritePromise')
 /**
  * MySQL数据库服务
  */
@@ -118,8 +122,10 @@ class TmsMysql extends DbServer {
     let conn
     if (this.conn.master) conn = this.conn.master
     else if (autoCreate) {
-      conn = await this.connect()
-      this.conn.master = conn
+      if (!this[RUNING_CONN_MASTER_PROMISE]) {
+        this[RUNING_CONN_MASTER_PROMISE] = this.connect()
+      }
+      this.conn.master = conn = new Promise(resolve => resolve(this[RUNING_CONN_MASTER_PROMISE]))
     }
 
     return conn
@@ -134,10 +140,10 @@ class TmsMysql extends DbServer {
     let conn
     if (this.conn.writable) conn = this.conn.writable
     else if (autoCreate) {
-      conn = await this.connect({
-        useWritable: true
-      })
-      this.conn.writable = conn
+      if (!this[RUNING_CONN_WRITE_PROMISE]) {
+        this[RUNING_CONN_WRITE_PROMISE] = this.connect({ useWritable: true })
+      }
+      this.conn.writable = conn = new Promise(resolve => resolve(this[RUNING_CONN_WRITE_PROMISE]))
     }
 
     return conn
@@ -194,6 +200,12 @@ class TmsMysql extends DbServer {
       let threadId = conn.threadId
       conn.release()
       logger.info(`关闭写数据库连接（${threadId}）`)
+    } else if (conn && typeof conn.then === 'function') {
+      conn.then(conn2 => {
+        let threadId = conn2.threadId
+        conn2.release()
+        logger.info(`关闭写数据库连接（${threadId}）`)
+      })
     }
     if (done && typeof done === 'function') done()
   }
